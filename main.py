@@ -1,42 +1,57 @@
-import pandas as pd
 import numpy as np
-from scipy.stats import norm
 
-# Datensatz mit historischen Kursdaten
-df = pd.read_csv("aktienkursdaten.csv")
+class BayesAktienkurs:
 
-# Aktueller Aktienkurs
-aktienkurs_heute = 100
+    def __init__(self, kursdaten):
+        self.kursdaten = kursdaten
+        self.steigungen = kursdaten[kursdaten > 0].shape[0]
+        self.senkungen = kursdaten[kursdaten < 0].shape[0]
+        self.gesamt = len(kursdaten)
 
-# Priors
-mu_0 = 0  # Mittelwert der Normalverteilung
-sigma_0 = 1  # Standardabweichung der Normalverteilung
+    def prior(self):
+        """
+        Berechnet die Wahrscheinlichkeit a priori für Steigung und Senkung.
+        """
+        p_steigung = self.steigungen / self.gesamt
+        p_senkung = self.senkungen / self.gesamt
+        return p_steigung, p_senkung
 
-# Likelihood-Funktion
-def likelihood(x, mu, sigma):
-  return norm.pdf(x, loc=mu, scale=sigma)
+    def likelihood(self, neuer_kurs):
+        """
+        Berechnet die Wahrscheinlichkeit der Kursentwicklung a posteriori.
+        """
+        if neuer_kurs > 0:
+            p_steigung = neuer_kurs / self.steigungen
+        else:
+            p_steigung = 0
+        if neuer_kurs < 0:
+            p_senkung = -neuer_kurs / self.senkungen
+        else:
+            p_senkung = 0
+        return p_steigung, p_senkung
 
-# Bayes'sche Analyse
-def bayes_analyse(aktienkurs_heute, mu_0, sigma_0):
-  # Posterior-Verteilung
-  mu_posterior = (mu_0 * sigma_0**2 + aktienkurs_heute) / (sigma_0**2 + 1)
-  sigma_posterior = np.sqrt((sigma_0**2 * 1) / (sigma_0**2 + 1))
+    def posterior(self, neuer_kurs):
+        """
+        Berechnet die Wahrscheinlichkeit a posteriori für Steigung und Senkung.
+        """
+        p_steigung_prior, p_senkung_prior = self.prior()
+        p_steigung_likelihood, p_senkung_likelihood = self.likelihood(neuer_kurs)
+        p_steigung_posterior = (p_steigung_prior * p_steigung_likelihood) / (
+            p_steigung_prior * p_steigung_likelihood + p_senkung_prior * p_senkung_likelihood
+        )
+        p_senkung_posterior = (p_senkung_prior * p_senkung_likelihood) / (
+            p_steigung_prior * p_steigung_likelihood + p_senkung_prior * p_senkung_likelihood
+        )
+        return p_steigung_posterior, p_senkung_posterior
 
-  # Wahrscheinlichkeit, dass der Kurs steigt
-  p_steigt = norm.cdf(aktienkurs_heute, loc=mu_posterior, scale=sigma_posterior)
+# Beispiel
+kursdaten = np.array([1, 2, -3, 4, 5, -1, 2, 3])
+model = BayesAktienkurs(kursdaten)
 
-  # Entscheidungsempfehlung
-  if p_steigt > 0.5:
-    empfehlung = "Halten"
-  else:
-    empfehlung = "Verkaufen"
+neuer_kurs = 2
 
-  return mu_posterior, sigma_posterior, p_steigt, empfehlung
+p_steigung, p_senkung = model.posterior(neuer_kurs)
 
-# Ausgabe der Ergebnisse
-mu_posterior, sigma_posterior, p_steigt, empfehlung = bayes_analyse(aktienkurs_heute, mu_0, sigma_0)
+print(f"Wahrscheinlichkeit für Steigung: {p_steigung:.2f}")
+print(f"Wahrscheinlichkeit für Senkung: {p_senkung:.2f}")
 
-print("Posteriorer Mittelwert:", mu_posterior)
-print("Posteriore Standardabweichung:", sigma_posterior)
-print("Wahrscheinlichkeit, dass der Kurs steigt:", p_steigt)
-print("Empfehlung:", empfehlung)
